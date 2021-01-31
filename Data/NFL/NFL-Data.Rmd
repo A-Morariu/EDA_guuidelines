@@ -1,0 +1,107 @@
+---
+title: "NFL Data Exploration"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+### Source: https://www.kaggle.com/maxhorowitz/nflplaybyplay2009to2016
+# devtools::install_github(repo = "maksimhorowitz/nflscrapR")
+# library(nflscrapR)
+library(tidyverse)
+library(teamcolors)
+library(here)
+```
+
+```{r Load-Data}
+data_set <- read.csv( here( "data/NFL Play by Play 2009-2018 (v5).csv") )
+# glimpse(data_set)
+```
+
+```{r Explore-Data-Game-ID-Take-One}
+### Goal: To plot winners/losers with some events from the data set.
+data_set %>% 
+  dplyr::filter( format( as.Date(data_set$game_date), "%Y") == 2009 ) %>% 
+  dplyr::filter( game_id == 2009091000 ) %>%
+  dplyr::arrange( play_id ) %>%
+  dplyr::select( total_home_score, total_away_score, score_differential, game_seconds_remaining, qtr ) %>%
+  dplyr::mutate( game_minutes_remaining = round( game_seconds_remaining / 60, 2 ) ) %>%
+  dplyr::mutate( game_minutes_elapsed = 60 - game_minutes_remaining ) %>%
+  ggplot( aes(x = game_minutes_elapsed) ) +
+    geom_line( aes(y = total_home_score, color = "blue"), linetype = "solid" ) +  
+    geom_line( aes(y = total_away_score, color = "red"), linetype = "solid" )
+### Realized there is a problem with overtime games. 
+```
+
+
+
+```{r Load-and-Preprocess-Data-Take-Two}
+# data_set <- read.csv( here( "data/NFL Play by Play 2009-2018 (v5).csv") ); glimpse(data_set)
+nfl_logos_df <- read_csv("https://raw.githubusercontent.com/statsbylopez/BlogPosts/master/nfl_teamlogos.csv")
+```
+
+```{r Explore-Data-Game-ID-Take-Two, message = FALSE, warning = FALSE}
+library(ggimage)
+### Want time elapsed in overtime to add to the 60 minutes of the game 
+data_set %>% 
+  ### Filter by games in 2009, select the first year, and sort rows by 'play_id'
+  dplyr::filter( format( as.Date(data_set$game_date), "%Y") == 2009 ) %>% 
+  dplyr::filter( game_id == 2009091000 ) %>%
+  dplyr::arrange( play_id ) %>%
+  ### Process time remaining variables to be pleasant for plotting
+  dplyr::mutate( game_minutes_remaining = round( game_seconds_remaining / 60, 2 ) ) %>%
+  dplyr::mutate( game_minutes_elapsed = 60 - game_minutes_remaining ) %>%
+  dplyr::mutate( game_minutes_elapsed = case_when( qtr == 5 ~ 15 + game_minutes_elapsed,
+                                                   TRUE ~ game_minutes_elapsed ) ) %>%
+  ### Add URLs of team logos to data set 
+  left_join(nfl_logos_df, by = c("posteam" = "team_code")) %>%
+  ### Make ggplot of various data set variables over time. 
+  ggplot( aes(x = game_minutes_elapsed) ) +
+    # geom_image(aes(image = url, y = home_wp), size = 0.05) +
+    geom_line( aes(y = home_wp, color = "blue"), linetype = "solid" ) +  
+    geom_line( aes(y = away_wp, color = "red"), linetype = "solid" ) +
+    theme_bw() + 
+    xlab( "Minutes Played" ) + 
+    ylab( "Win Probability" ) + 
+    labs( title = "Win Probability Against Time",
+          subtitle = "First Game in Data Set" ) 
+    # geom_point( y = fourth_down_failed )
+```
+
+## Hypothesis Generation 
+
+We can now plot game scores or win probabilities by team against time. We want to add other variables to the plot to examine their effect. Variables of interest include: 
+
+  1. Fourth down conversions
+  2. Coach's/replay challenges
+  3. Change of possesion 
+  4. Incomplete Pass or Interception 
+  5. Touchdown (Pass/Rush) - Is a rush/pass touchdown more "valuable" to win probabiity?
+  6. Tackled for loss
+  7. Sack / Fumble - How often do these lead to changes in possesion? Does it differ by player/team? 
+  
+Pairs of variables of interest:
+
+  1. Passing plays are characterized by the four-tuple (pass_length, pass_location, air_yards, yards_after_catch). 
+  2. Down play conditionals can help characterize how a team runs its offense 
+      - Pittsburg: Bell - run on 1^st^ downs; Brown - pass on 3^rd^ downs (plus distribution of pass plays -- short/medium/long)
+  3*. Pass player ID and Receiver player ID ( Tom Brady and Randy Moss, Peyton Manning and Marvin Harrison,
+                                              Big Ben and Antonio Brown )
+  
+There is no play clock variable. 
+  
+
+```{r Scrap-Code, eval = FALSE}
+library(lubridate)
+period_to_seconds(ms(test$time))
+format( as.POSIXlt("10:00", format="%M:%S"), format = "%M:%S" )
+format( as.POSIXlt(test$time, format="%M:%S"), format = "%M:%S" )  
+dplyr::transmute( time = period_to_seconds(ms(time)) )
+
+plot( x = test$game_seconds_remaining,
+      y = test$total_home_score, 
+      type = 'l', col = "blue")
+lines( x = test$game_seconds_remaining,
+       y = test$total_away_score, 
+       type = 'l', col = "red" )
+```
