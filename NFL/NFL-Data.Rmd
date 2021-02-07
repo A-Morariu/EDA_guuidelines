@@ -9,12 +9,13 @@ knitr::opts_chunk$set(echo = FALSE)
 # devtools::install_github(repo = "maksimhorowitz/nflscrapR")
 # library(nflscrapR)
 library(tidyverse)
+library(tidytext)
 library(teamcolors)
 library(here)
 ```
 
 ```{r Load-Data}
-data_set <- read.csv( here( "data/NFL Play by Play 2009-2018 (v5).csv") )
+data_set <- read.csv( here( "NFL Play by Play 2009-2018 (v5).csv") )
 # glimpse(data_set)
 ```
 
@@ -87,9 +88,112 @@ Pairs of variables of interest:
       - Pittsburg: Bell - run on 1^st^ downs; Brown - pass on 3^rd^ downs (plus distribution of pass plays -- short/medium/long)
   3*. Pass player ID and Receiver player ID ( Tom Brady and Randy Moss, Peyton Manning and Marvin Harrison,
                                               Big Ben and Antonio Brown )
-  
+
 There is no play clock variable. 
+
+## ALIN DOING THINGS
+```{r}
+wins_df = data_set %>% 
+  filter( format( as.Date(data_set$game_date), "%Y") == 2009 ) %>% 
+  group_by(game_id) %>% 
+  summarize(home = first(home_team), 
+            away = first(away_team), 
+            home_score_final = last(total_home_score),
+            away_score_final = last(total_away_score)) %>% 
+  mutate(is_tie = ifelse(home_score_final == away_score_final, 1, 0),
+         team = ifelse(home_score_final > away_score_final, 
+                         home, 
+                         away)) %>% 
+  count(team, name = 'wins') %>% 
+  mutate(losses = 16 - wins,
+         win_percentage = round(wins/16,4)) 
+# this is missing ties! 
+wins_df 
+```
+
+```{r}
+# need to unstack this shit -.- 
+wins_df %>%
+  gather(key = result, value = wl, wins:losses) %>% 
+  ggplot(aes(x = reorder(team, win_percentage), y = wl, fill = result)) + 
+  geom_bar(stat = 'identity') + 
+  labs(title ="2009 NFL Team Ranking ", x = "Team", y = "Games Played") +
+  coord_flip()
+```
+```{r}
+wins_df %>% 
+  ggplot(aes(x = reorder(team, wins), y = wins)) + 
+  geom_bar(stat = 'identity') + 
+  labs(title ="2009 NFL Team Ranking ", x = "Team", y = "Wins") + 
+  coord_flip() + theme_bw()
+```
+
+```{r}
+# Wrapping our processing into functions! This is important for making reproducible results 
+# with changes to certain parameters (good for comparing across time)
+yearly_wins <- function(df, year){
+  temp_df <- df %>% 
+  filter( format( as.Date(data_set$game_date), "%Y") == year ) %>% 
+  group_by(game_id) %>% 
+  summarize(home = first(home_team), 
+            away = first(away_team), 
+            home_score_final = last(total_home_score),
+            away_score_final = last(total_away_score)) %>% 
+  mutate(is_tie = ifelse(home_score_final == away_score_final, 1, 0),
+         team = ifelse(home_score_final > away_score_final, 
+                         home, 
+                         away)) %>% 
+  count(team, name = 'wins') %>% 
+  mutate(losses = 16 - wins,
+         win_percentage = round(wins/16,4)) 
   
+  return(temp_df)
+}
+
+plt_wins <- function(wins_df){
+  plt <- wins_df %>%
+  gather(key = result, value = wl, wins:losses) %>% 
+  ggplot(aes(x = reorder(team, win_percentage), y = wl, fill = result)) + 
+  geom_bar(stat = 'identity') + 
+  labs(title ="2009 NFL Team Ranking ", x = "Team", y = "Games Played") +
+  coord_flip()
+  
+  plt
+}
+```
+
+
+So now we get a little smarter and remove the year filter so we can facet wrap this shiz
+
+```{r}
+wins_df = data_set %>% 
+  mutate(year_of_play = format( as.Date(data_set$game_date), "%Y") ) %>% 
+  group_by(year_of_play, game_id) %>% 
+  summarize(home = first(home_team), 
+            away = first(away_team), 
+            home_score_final = last(total_home_score),
+            away_score_final = last(total_away_score)) %>% 
+  mutate(is_tie = ifelse(home_score_final == away_score_final, 1, 0),
+         team = ifelse(home_score_final > away_score_final, 
+                         home, 
+                         away)) %>% 
+  count(team, name = 'wins') %>% 
+  mutate(losses = 16 - wins,
+         win_percentage = round(wins/16,4)) 
+
+wins_df %>%
+  gather(key = result, value = wl, wins:losses) %>% 
+  ggplot( aes(reorder_within(team, wl, result), win_percentage)) + 
+  geom_bar(stat = 'identity') + 
+  labs(title ="NFL Team Rankings", x = "Team", y = "Games Played") +
+  coord_flip() + 
+  facet_wrap(~ year_of_play)
+```
+
+
+
+
+
 
 ```{r Scrap-Code, eval = FALSE}
 library(lubridate)
