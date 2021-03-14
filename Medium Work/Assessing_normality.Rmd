@@ -1,0 +1,109 @@
+---
+title: "Assessing Normality"
+author: "Alin Morariu"
+date: "13/03/2021"
+output: html_document
+---
+```{r}
+library(tidyverse)
+library(moments)
+```
+
+This blog post is dedicated to the idea of assessing normality in data. It was part of a bigger project which outlines the most important principles of the exploratory data analysis process. 
+
+# Building Blocks 
+```{r}
+# generate sequence of x
+x <- seq(-100, 100, 0.1)
+
+# generate associted normals 
+y_norm <- dnorm(x, mean = -10, sd = 10)
+y_norm_narrow <- dnorm(x, sd = 1)
+y_norm_wide <- dnorm(x, mean = 10, sd = 15)
+
+# create a dataframe 
+df <- tibble(x, y_norm, y_norm_narrow, y_norm_wide)
+```
+
+```{r Plots}
+df %>% ggplot(aes(x = x)) +
+     geom_line(aes(y = y_norm), colour = 'red') + 
+     geom_line(aes(y = y_norm_narrow), colour = 'steelblue') + 
+     geom_line(aes(y = y_norm_wide), colour = 'darkgreen') +
+     labs(title = 'The Normal Distribution',
+          subtitle = 'Varying parameters',
+          x = 'Value',
+          y = 'Probability') + 
+     theme_minimal()
+     
+```
+
+```{r}
+t_variant_1 <- dt(x -10, 1.5)
+t_variant_2 <- dt(x, 0.5)
+t_variant_3 <- dt(x + 10, 20)
+
+
+df_t <- tibble(x, 
+               t_dist_1 = t_variant_1, 
+               t_dist_2 = t_variant_2, 
+               t_dist_3 = t_variant_3)
+
+df_t %>% ggplot(aes(x = x)) +
+     geom_line(aes(y = t_dist_1), colour = 'red') + 
+     geom_line(aes(y = t_dist_2), colour = 'steelblue') + 
+     geom_line(aes(y = t_dist_3), colour = 'darkgreen') +
+     labs(title = 'The Non-Normal Distribution',
+          subtitle = 'Varying parameters',
+          x = 'Value',
+          y = 'Probability') + 
+     coord_cartesian(xlim = c(-25, 25)) + 
+     theme_minimal()
+     
+```
+
+```{r}
+df_resemblence <- tibble(x, y_norm_narrow, t_variant_3)
+df_resemblence %>% ggplot(aes(x=x)) + 
+     geom_line(aes(y = y_norm_narrow), colour = 'steelblue') + 
+     geom_line(aes(y = t_variant_3), colour = 'darkgreen') +
+     coord_cartesian(xlim = c(-40, 40)) + 
+     theme_minimal()
+```
+
+QQ-Plot for that janky-ass t distribution
+```{r}
+random_sample = rt(n = 1000, 100)
+
+df_resemblence %>% ggplot(aes(sample = t_variant_3)) +
+     stat_qq() +
+     coord_cartesian(xlim = c(-10, 10), 
+                     ylim = c(-2, 2)) + 
+     theme_minimal()
+```
+
+```{r}
+qqnorm(random_sample)
+```
+Punchline: you have a t and a normal that both look normal but this not good. 
+
+```{r}
+# normal
+skewness(y_norm_narrow)
+kurtosis(y_norm_narrow)
+
+# not normal
+skewness(t_variant_3)
+kurtosis(t_variant_3)
+```
+
+# Normal Distribution 
+
+
+# Narrow Normal Distribution
+
+
+# Wide Normal Distribution 
+
+
+# A well picked out t-distribution that looks normal 
